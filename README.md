@@ -1,66 +1,81 @@
-# File Analysis Tool
+# Trust Bodhi - Multi-Client Data Processing Platform
 
-A FastAPI-based web application that analyzes Excel and CSV files, performs transformations, and displays the results in a modern web interface.
+A modern, modular platform for processing client data with multiple normalization tools.
 
-## Features
+## 📁 Project Structure
 
-- Upload Excel (.xlsx, .xls) or CSV files
-- Automatic file analysis and transformation
-- Modern UI with Tailwind CSS
-- Real-time progress indication
-- Interactive results table
-- Download transformed data
-
-## Requirements
-
-- Python 3.10
-- pip (Python package manager)
-
-## Installation
-
-1. Clone this repository:
-```bash
-git clone <repository-url>
-cd <repository-name>
+```
+FNBOT/
+├── backend/                    # FastAPI Backend (Refactored)
+│   ├── main.py                # API router
+│   ├── tools/                 # Client-specific tools
+│   │   ├── bbb_normalizer.py  # BBB Purchase Log processing
+│   │   └── nectar_dashboard.py # Nectar CPG dashboard processing
+│   ├── utils/                 # Shared utilities
+│   │   └── file_utils.py      # File operations & helpers
+│   ├── files/                 # Output directory
+│   └── requirements.txt       # Python dependencies
+├── trust-bodhi-app/           # Next.js Frontend
+│   ├── src/                   # Source code
+│   ├── pages/                 # Next.js pages
+│   └── package.json           # Frontend dependencies
+├── test_files/                # Test data files
+└── .venv/                     # Python virtual environment
 ```
 
-2. Create a virtual environment (recommended):
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows, use: venv\Scripts\activate
-```
+## 🚀 Quick Start
 
-3. Install dependencies:
+### Backend Setup
 ```bash
+cd backend
 pip install -r requirements.txt
+python start_server.py
 ```
 
-## Running the Application
-
-1. Start the FastAPI server:
+### Frontend Setup
 ```bash
-uvicorn main:app --reload
+cd trust-bodhi-app
+npm install
+npm run dev
 ```
 
-2. Open your web browser and navigate to:
-```
-http://localhost:8000
-```
+## 🔌 API Endpoints
 
-## Usage
+- `GET /health` - Health check
+- `POST /analyze` - BBB file processing
+- `POST /analyze-nectar` - Nectar dashboard processing
+- `GET /files/{filename}` - File download
+- `GET /docs` - API documentation
 
-1. Click the "Choose File" button or drag and drop your Excel/CSV file
-2. Click "Analyze File" to process the data
-3. View the results in the interactive table
-4. Use the "Download Results" button to save the transformed data
+## 🛠️ Tools
 
-## Development
+### BBB Normalizer
+- Processes purchase log data with supplier matching
+- Creates 4 output sheets: Purchase Log, Item Totals, Supplier Totals, Confidence Dashboard
+- Uses fuzzy matching for item identification
 
-The application consists of:
-- `main.py`: FastAPI backend with file processing logic
-- `templates/index.html`: Frontend template with Vue.js and Tailwind CSS
-- `requirements.txt`: Python dependencies
+### Nectar Dashboard
+- Processes CPG dashboard data from Byzzer and VIP reports
+- Supports optional reference files for enhanced analysis
+- Calculates metrics like rate of sale, fulfillment percentages, and revenue
 
-## License
+## 📊 Features
 
-MIT License 
+- ✅ **Modular Architecture** - Clean separation of concerns
+- ✅ **Multiple Client Tools** - BBB and Nectar processing
+- ✅ **Shared Utilities** - Common file operations
+- ✅ **Production Ready** - Proper error handling and logging
+- ✅ **API Documentation** - Interactive Swagger UI
+- ✅ **CORS Enabled** - Frontend integration ready
+
+## 🔧 Development
+
+The project uses:
+- **Backend**: FastAPI with Python 3.11+
+- **Frontend**: Next.js with TypeScript
+- **Data Processing**: Pandas, OpenPyXL
+- **File Matching**: FuzzyWuzzy
+
+## 📝 License
+
+This project is proprietary and confidential. 
