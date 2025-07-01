@@ -232,7 +232,12 @@ class BBBNormalizer:
                     logger.info(f"Mapped vendor from: {candidate}")
                     break
         
-        # Ensure required columns exist with defaults
+        # If 'total' exists and 'quantity' does not, set 'quantity' = 'total'
+        if 'total' in df.columns and 'quantity' not in df.columns:
+            df['quantity'] = df['total']
+            logger.info("Mapped 'total' to 'quantity' for files like Moxies/Second Rodeo")
+
+        # Ensure required columns exist with defaults, but do NOT overwrite existing 'quantity'
         required_columns = ['item', 'store', 'vendor', 'pack_size', 'category', 'quantity', 'amount', 'cu_price', 'unit_measure']
         for col in required_columns:
             if col not in df.columns:
@@ -245,11 +250,6 @@ class BBBNormalizer:
                 else:
                     df[col] = ''
                 logger.info(f"Added default column: {col}")
-        
-        # Special logic: If 'total' column exists and 'quantity' does not, use it as 'quantity'
-        if 'total' in df.columns and 'quantity' not in df.columns:
-            df['quantity'] = df['total']
-            logger.info("Mapped column: total -> quantity (special logic for Moxies/Second Rodeo style files)")
         
         logger.info(f"Final columns: {list(df.columns)}")
         return df
@@ -617,6 +617,11 @@ class BBBNormalizer:
             if old_col in purchase_log.columns:
                 purchase_log[new_col] = purchase_log[old_col]
         
+        # Always map 'quantity' to 'QUANTITY      ' and 'Total Cases'
+        if 'quantity' in purchase_log.columns:
+            purchase_log['QUANTITY      '] = purchase_log['quantity']
+            purchase_log['Total Cases'] = purchase_log['quantity']
+        
         # Add missing columns with proper values
         missing_columns = set(required_columns) - set(purchase_log.columns)
         for col in missing_columns:
@@ -632,12 +637,6 @@ class BBBNormalizer:
             elif col == 'Container Size':
                 # Try to extract container size from pack size or use default
                 purchase_log[col] = purchase_log['PACK SIZE      '].apply(self._extract_container_size)
-            elif col == 'Total Cases':
-                # Use quantity as total cases if available
-                if 'QUANTITY      ' in purchase_log.columns:
-                    purchase_log[col] = purchase_log['QUANTITY      ']
-                else:
-                    purchase_log[col] = 1
             elif col == 'Unit of Measure':
                 if 'Unit of Measure' in purchase_log.columns:
                     purchase_log[col] = purchase_log['Unit of Measure']
@@ -655,6 +654,10 @@ class BBBNormalizer:
         logger.info(f"Suppliers: {purchase_log['Supplier'].value_counts().head().to_dict()}")
         logger.info(f"Total Cases sum: {purchase_log['Total Cases'].sum()}")
         
+        # Debug: Log columns and sample values at the very end before returning
+        logger.info(f"[FINAL DEBUG] Columns at return: {list(purchase_log.columns)}")
+        logger.info(f"[FINAL DEBUG] First 5 rows at return: {purchase_log.head(5).to_dict('records')}")
+
         return purchase_log
     
     def _extract_case_size(self, pack_size: str) -> int:
