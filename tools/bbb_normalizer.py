@@ -394,9 +394,23 @@ class BBBNormalizer:
         Process input file with schema detection and data normalization
         """
         try:
-            # Read input file using utility function
+            # Read input file using utility function with robust parsing
             if input_file.lower().endswith('.csv'):
-                df = read_csv_file(input_file)
+                try:
+                    # Try different encodings and separators
+                    df = read_csv_file(input_file)
+                except Exception as csv_error:
+                    logger.warning(f"Standard CSV parsing failed: {csv_error}, trying alternative methods")
+                    try:
+                        # Try with different encoding
+                        df = pd.read_csv(input_file, encoding='latin-1', on_bad_lines='skip')
+                    except:
+                        try:
+                            # Try with different separator
+                            df = pd.read_csv(input_file, sep='\t', on_bad_lines='skip')
+                        except:
+                            # Last resort: try with engine='python'
+                            df = pd.read_csv(input_file, engine='python', on_bad_lines='skip')
             else:
                 df = read_excel_file(input_file)
             
@@ -667,12 +681,22 @@ class BBBNormalizer:
             output_path = os.path.join("files", filename)
             logger.info(f"Generated output path for BBB: {output_path}")
 
-            # Save uploaded file temporarily
-            temp_input_path = os.path.join("files", f"input_bev_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+            # Save uploaded file temporarily with proper extension detection
+            file_extension = '.csv'  # Default to CSV
+            try:
+                # Try to detect if it's an Excel file by checking the first few bytes
+                if file_bytes.startswith(b'\x50\x4b\x03\x04') or file_bytes.startswith(b'\x50\x4b\x05\x06'):
+                    file_extension = '.xlsx'
+                elif file_bytes.startswith(b'\xd0\xcf\x11\xe0'):
+                    file_extension = '.xls'
+            except:
+                pass
+            
+            temp_input_path = os.path.join("files", f"input_bev_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_extension}")
             with open(temp_input_path, 'wb') as f:
                 f.write(file_bytes)
             
-            # Process the input file
+            # Process the input file with robust parsing
             processed_df = self.process_input_file(temp_input_path)
             
             # Create output sheets
