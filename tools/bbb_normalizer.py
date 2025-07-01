@@ -76,16 +76,19 @@ class BBBNormalizer:
             # Normalize column names using utility function
             supplier_df = normalize_column_names(supplier_df)
             
-            # Extract supplier items (assuming 'item' column exists)
+            # Store the full reference dataframe for supplier mapping
+            self.supplier_reference_df = supplier_df
+            
+            # Extract supplier items from the ITEM column (not supplier names)
             if 'item' in supplier_df.columns:
                 self.supplier_items = supplier_df['item'].dropna().unique().tolist()
-                logger.info(f"Loaded {len(self.supplier_items)} supplier items")
+                logger.info(f"Loaded {len(self.supplier_items)} reference items for matching")
             else:
                 # Try to find item column with different names
                 item_cols = [col for col in supplier_df.columns if 'item' in col.lower() or 'product' in col.lower()]
                 if item_cols:
                     self.supplier_items = supplier_df[item_cols[0]].dropna().unique().tolist()
-                    logger.info(f"Loaded {len(self.supplier_items)} supplier items from column: {item_cols[0]}")
+                    logger.info(f"Loaded {len(self.supplier_items)} reference items from column: {item_cols[0]}")
                 else:
                     logger.warning("No item column found in supplier reference file")
                     self.supplier_items = []
@@ -349,7 +352,7 @@ class BBBNormalizer:
     def match_supplier_with_confidence(self, item: str) -> Tuple[str, float, str]:
         """
         Match item to supplier using fuzzy matching
-        Returns: (matched_supplier, confidence_score, status)
+        Returns: (matched_supplier_name, confidence_score, status)
         """
         if not item or pd.isna(item) or str(item).strip() == '':
             return "UNMATCHED", 0.0, "Empty item"
@@ -358,22 +361,25 @@ class BBBNormalizer:
         
         # Exact match first (case insensitive)
         if item_str.lower() in [x.lower() for x in self.supplier_items]:
-            # Find the exact match with original case
-            for supplier_item in self.supplier_items:
+            # Find the exact match and return the corresponding supplier name
+            for idx, supplier_item in enumerate(self.supplier_items):
                 if supplier_item.lower() == item_str.lower():
-                    return supplier_item, 1.0, "Exact match"
+                    # Get the supplier name from the reference dataframe
+                    supplier_name = self.supplier_reference_df.iloc[idx]['supplier']
+                    return supplier_name, 1.0, "Exact match"
         
         # Partial match (check if item contains supplier item or vice versa)
-        for supplier_item in self.supplier_items:
+        for idx, supplier_item in enumerate(self.supplier_items):
             if (item_str.lower() in supplier_item.lower() or 
                 supplier_item.lower() in item_str.lower()):
-                return supplier_item, 0.95, "Partial match"
+                supplier_name = self.supplier_reference_df.iloc[idx]['supplier']
+                return supplier_name, 0.95, "Partial match"
         
         # Fuzzy matching with lower thresholds
-        best_match = None
+        best_match_idx = None
         best_score = 0
         
-        for supplier_item in self.supplier_items:
+        for idx, supplier_item in enumerate(self.supplier_items):
             # Use multiple fuzzy matching algorithms
             ratio_score = fuzz.ratio(item_str.lower(), supplier_item.lower())
             partial_score = fuzz.partial_ratio(item_str.lower(), supplier_item.lower())
@@ -384,15 +390,18 @@ class BBBNormalizer:
             
             if score > best_score:
                 best_score = score
-                best_match = supplier_item
+                best_match_idx = idx
         
         # Lower confidence thresholds for better matching
         if best_score >= 80:
-            return best_match, best_score / 100, "High confidence"
+            supplier_name = self.supplier_reference_df.iloc[best_match_idx]['supplier']
+            return supplier_name, best_score / 100, "High confidence"
         elif best_score >= 60:
-            return best_match, best_score / 100, "Medium confidence"
+            supplier_name = self.supplier_reference_df.iloc[best_match_idx]['supplier']
+            return supplier_name, best_score / 100, "Medium confidence"
         elif best_score >= 40:
-            return best_match, best_score / 100, "Low confidence"
+            supplier_name = self.supplier_reference_df.iloc[best_match_idx]['supplier']
+            return supplier_name, best_score / 100, "Low confidence"
         else:
             return "UNMATCHED", best_score / 100, "No confident match"
     
