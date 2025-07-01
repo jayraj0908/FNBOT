@@ -1043,10 +1043,7 @@ def normalize_bbb(bev_bytes, references=None):
         logger.info(f"Total Cases sum: {total_cases_sum}")
         
         # Create Item Totals
-        if 'Total Cases' in purchase_log.columns:
-            group_cols = ['Supplier', 'ITEM      ']
-            sum_col = 'Total Cases'
-        elif 'QUANTITY      ' in purchase_log.columns:
+        if 'QUANTITY      ' in purchase_log.columns:
             group_cols = ['Supplier', 'ITEM      ']
             sum_col = 'QUANTITY      '
         else:
@@ -1062,9 +1059,7 @@ def normalize_bbb(bev_bytes, references=None):
         logger.info(f"Sample: {item_totals.head(3).to_dict('records')}")
         
         # Create Supplier Totals
-        if 'Total Cases' in purchase_log.columns:
-            sum_col = 'Total Cases'
-        elif 'QUANTITY      ' in purchase_log.columns:
+        if 'QUANTITY      ' in purchase_log.columns:
             sum_col = 'QUANTITY      '
         else:
             sum_col = 'QUANTITY      '
