@@ -957,5 +957,6 @@ def normalize_bbb(bev_bytes, references=None):
         }
 
     except Exception as e:
-        logger.error(f"Error in normalize_bbb: {e}")
-        return {"error": str(e)} 
+        tb = traceback.format_exc()
+        logger.error(f"Error in normalize_bbb: {e}\n{tb}")
+        return {"error": str(e), "traceback": tb} 
