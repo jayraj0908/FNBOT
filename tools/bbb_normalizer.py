@@ -1051,7 +1051,8 @@ def normalize_bbb(bev_bytes, references=None):
             sum_col = 'QUANTITY      '
         
         item_totals = purchase_log.groupby(group_cols)[sum_col].sum().reset_index()
-        item_totals.columns = ['Supplier', 'ITEM      ', 'SUM of Total Cases']
+        # Rename the sum column to the expected name
+        item_totals = item_totals.rename(columns={sum_col: 'SUM of Total Cases'})
         
         logger.info(f"Created Item Totals with {len(item_totals)} rows")
         logger.info(f"Item Totals - Total SUM of Total Cases: {item_totals['SUM of Total Cases'].sum()}")
@@ -1065,7 +1066,9 @@ def normalize_bbb(bev_bytes, references=None):
             sum_col = 'QUANTITY      '
         
         supplier_totals = purchase_log.groupby('Supplier')[sum_col].sum().reset_index()
-        supplier_totals.columns = ['Supplier', 'SUM of Total Cases', 'Unnamed: 2']
+        # Rename the sum column to the expected name
+        supplier_totals = supplier_totals.rename(columns={sum_col: 'SUM of Total Cases'})
+        # Add the required empty column
         supplier_totals['Unnamed: 2'] = ''
         
         logger.info(f"Created Supplier Totals with {len(supplier_totals)} rows")
