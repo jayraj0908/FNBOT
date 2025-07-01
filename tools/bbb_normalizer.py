@@ -622,11 +622,35 @@ class BBBNormalizer:
             else:
                 return quantity * 1.0  # Generic 16oz case conversion
         
+        # Generic can patterns
+        elif re.search(r'(\d+)\s*X\s*1CAN', pack_str):
+            case_size = int(re.search(r'(\d+)', pack_str).group(1))
+            return quantity * 1.0  # Generic can case conversion
+        
         # Individual can/bottle patterns
         elif any(term in pack_str for term in ['12OZ', '12 OZ', '12FL.OZ', '12 FL OZ']):
             return quantity * 1.0  # Individual 12oz conversion ratio
         elif any(term in pack_str for term in ['16OZ', '16 OZ', '16FL.OZ', '16 FL OZ']):
             return quantity * 1.0  # Individual 16oz conversion ratio
+        
+        # Individual item patterns
+        elif any(term in pack_str for term in ['1EACH', '1 EACH', 'EACH']):
+            return quantity * 1.0  # Individual item conversion ratio
+        
+        # Gallon patterns
+        elif re.search(r'(\d+(?:\.\d+)?)\s*GAL', pack_str):
+            size = float(re.search(r'(\d+(?:\.\d+)?)', pack_str).group(1))
+            if size == 2.5:
+                return quantity * 2.17  # 2.5gal conversion ratio (same as 19.5L)
+            elif size == 19.5:
+                return quantity * 2.17  # 19.5gal conversion ratio
+            else:
+                return quantity * 2.17  # Generic gallon conversion ratio
+        
+        # Small format patterns
+        elif re.search(r'(\d+)\s*X\s*250ML', pack_str):
+            case_size = int(re.search(r'(\d+)', pack_str).group(1))
+            return quantity * 1.0  # Generic 250ml case conversion
         
         # Keg patterns
         elif any(term in pack_str for term in ['KEG', 'BBL', 'BARREL']):
