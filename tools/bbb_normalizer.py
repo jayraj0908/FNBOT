@@ -63,6 +63,13 @@ class BBBNormalizer:
     def load_supplier_reference(self):
         """Load and parse supplier reference file"""
         try:
+            # Check if file exists
+            if not os.path.exists(self.supplier_reference_file):
+                logger.error(f"Supplier reference file not found: {self.supplier_reference_file}")
+                logger.error(f"Current working directory: {os.getcwd()}")
+                logger.error(f"Available files in test_files: {os.listdir('test_files') if os.path.exists('test_files') else 'test_files directory not found'}")
+                raise FileNotFoundError(f"Supplier reference file not found: {self.supplier_reference_file}")
+            
             # Read supplier reference file using utility function
             supplier_df = read_excel_file(self.supplier_reference_file)
             

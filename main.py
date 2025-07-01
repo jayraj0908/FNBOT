@@ -79,7 +79,24 @@ async def analyze_file(bev_file: UploadFile = File(...)):
         file_content = await bev_file.read()
         
         # Process the file using BBB normalizer with master supplier list
-        supplier_reference_file = os.path.join("test_files", "60_Vines_Item_Supplier_List_Master.xlsx")
+        # Try multiple possible paths for the supplier reference file
+        possible_paths = [
+            os.path.join("test_files", "60_Vines_Item_Supplier_List_Master.xlsx"),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_files", "60_Vines_Item_Supplier_List_Master.xlsx"),
+            "60_Vines_Item_Supplier_List_Master.xlsx"
+        ]
+        
+        supplier_reference_file = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                supplier_reference_file = path
+                logger.info(f"Found supplier reference file at: {path}")
+                break
+        
+        if not supplier_reference_file:
+            logger.error("Supplier reference file not found in any expected location")
+            raise HTTPException(status_code=500, detail="Supplier reference file not found")
+        
         bbb_normalizer = BBBNormalizer(supplier_reference_file)
         result = bbb_normalizer.normalize(file_content)
         
@@ -113,7 +130,24 @@ async def process_bbb_file(bev_file: UploadFile = File(...)):
         file_content = await bev_file.read()
         
         # Process the file using BBB normalizer with master supplier list
-        supplier_reference_file = os.path.join("test_files", "60_Vines_Item_Supplier_List_Master.xlsx")
+        # Try multiple possible paths for the supplier reference file
+        possible_paths = [
+            os.path.join("test_files", "60_Vines_Item_Supplier_List_Master.xlsx"),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_files", "60_Vines_Item_Supplier_List_Master.xlsx"),
+            "60_Vines_Item_Supplier_List_Master.xlsx"
+        ]
+        
+        supplier_reference_file = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                supplier_reference_file = path
+                logger.info(f"Found supplier reference file at: {path}")
+                break
+        
+        if not supplier_reference_file:
+            logger.error("Supplier reference file not found in any expected location")
+            raise HTTPException(status_code=500, detail="Supplier reference file not found")
+        
         bbb_normalizer = BBBNormalizer(supplier_reference_file)
         result = bbb_normalizer.normalize(file_content)
         
