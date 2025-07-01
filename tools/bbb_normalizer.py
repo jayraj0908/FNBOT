@@ -545,27 +545,26 @@ class BBBNormalizer:
             logger.info(f"Unmatched items: {unmatched_count} ({unmatched_count/total_count*100:.1f}%)")
             logger.info(f"Matched items: {total_count - unmatched_count} ({(total_count - unmatched_count)/total_count*100:.1f}%)")
             
-            # After mapping, if QUANTITY      is all NaN, try to fill from total or amount
-            if df['QUANTITY      '].isna().all():
-                if 'total' in df.columns and pd.api.types.is_numeric_dtype(df['total']):
-                    df['QUANTITY      '] = df['total']
-                    logger.info("Filled QUANTITY      from total column (fallback)")
-                elif 'amount' in df.columns and pd.api.types.is_numeric_dtype(df['amount']):
-                    df['QUANTITY      '] = df['amount']
-                    logger.info("Filled QUANTITY      from amount column (fallback)")
-            # Ensure Total Cases is filled from QUANTITY      
-            if 'Total Cases' in df.columns:
-                df['Total Cases'] = df['QUANTITY      ']
-            
-            # Final fallback: if QUANTITY      and Total Cases are all NaN, fill from 'total' if it exists
-            if 'total' in df.columns:
-                if df['QUANTITY      '].isna().all():
-                    df['QUANTITY      '] = df['total']
-                    logger.info("Final fallback: Filled QUANTITY      from total column")
-                if df['Total Cases'].isna().all():
-                    df['Total Cases'] = df['total']
-                    logger.info("Final fallback: Filled Total Cases from total column")
-            
+            # Debug: Log columns and sample values before fallback
+            logger.info(f"[DEBUG] Columns before fallback: {list(df.columns)}")
+            logger.info(f"[DEBUG] Sample values before fallback: {df.head(3).to_dict('records')}")
+
+            # Only apply fallback if original input had 'total' but not 'quantity'
+            original_cols = set(df.columns)
+            if 'total' in original_cols and 'quantity' not in original_cols:
+                if 'total' in df.columns:
+                    if df['quantity'].isna().all():
+                        df['quantity'] = df['total']
+                        logger.info("[DEBUG] Fallback: Filled quantity from total column (Moxies/Second Rodeo style)")
+                if 'Total Cases' in df.columns:
+                    if df['Total Cases'].isna().all():
+                        df['Total Cases'] = df['total']
+                        logger.info("[DEBUG] Fallback: Filled Total Cases from total column (Moxies/Second Rodeo style)")
+
+            # Debug: Log columns and sample values after fallback
+            logger.info(f"[DEBUG] Columns after fallback: {list(df.columns)}")
+            logger.info(f"[DEBUG] Sample values after fallback: {df.head(3).to_dict('records')}")
+
             return df
             
         except Exception as e:
