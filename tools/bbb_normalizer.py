@@ -652,6 +652,30 @@ class BBBNormalizer:
         elif any(term in pack_str for term in ['1EACH', '1 EACH', 'EACH']):
             return quantity * 1.0  # Individual item conversion ratio
         
+        # Liter patterns (LTR)
+        elif any(term in pack_str for term in ['LTR', 'LITER']):
+            return quantity * 0.111111  # 1L conversion ratio (same as 1L)
+        
+        # Bottle patterns (BTL)
+        elif any(term in pack_str for term in ['BTL', 'BOTTLE']):
+            return quantity * 0.083333  # 750ml conversion ratio (same as 750ml)
+        
+        # Can patterns (CAN)
+        elif any(term in pack_str for term in ['CAN']):
+            return quantity * 1.0  # Can conversion ratio (same as 12oz)
+        
+        # Each patterns (EA)
+        elif any(term in pack_str for term in ['EA', 'EACH']):
+            return quantity * 1.0  # Each conversion ratio
+        
+        # Case patterns (CASE)
+        elif any(term in pack_str for term in ['CASE']):
+            return quantity * 1.0  # Case conversion ratio
+        
+        # Fluid ounce patterns (FL OZ)
+        elif any(term in pack_str for term in ['FL OZ', 'FL.OZ', 'OZ']):
+            return quantity * 1.0  # Fluid ounce conversion ratio
+        
         # Gallon patterns
         elif re.search(r'(\d+(?:\.\d+)?)\s*GAL', pack_str):
             size = float(re.search(r'(\d+(?:\.\d+)?)', pack_str).group(1))
