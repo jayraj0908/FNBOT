@@ -115,6 +115,11 @@ class BBBNormalizer:
         
         logger.info(f"Original columns: {list(df.columns)}")
         
+        # Clean and convert 'total' column to numeric if present
+        if 'total' in df.columns:
+            df['total'] = pd.to_numeric(df['total'], errors='coerce')
+            logger.info("Cleaned and converted 'total' column to numeric")
+        
         # Comprehensive column mappings with pattern matching
         column_mappings = {
             # Item mappings (product descriptions)
