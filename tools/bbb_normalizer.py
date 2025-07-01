@@ -869,6 +869,7 @@ def normalize_bbb(bev_bytes, references=None):
     Returns:
         dict: Contains filename and summary statistics
     """
+    import math
     try:
         filename = f"BBB_Normalized_Output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         output_path = os.path.join("files", filename)
@@ -891,57 +892,62 @@ def normalize_bbb(bev_bytes, references=None):
         df.columns = [norm_col(c) for c in df.columns]
         logger.info(f"Sanitized columns: {list(df.columns)}")
 
-        # Define all possible variants for required columns
+        # Map input columns to expected output columns
         col_map = {
-            'item': ['item', 'productdescription', 'description', 'productdesc', 'product', 'itemname'],
-            'supplier': ['supplier', 'vendor', 'distributor', 'brand'],
-            'quantity': ['quantity', 'qty', 'totalcases', 'cases', 'amount', 'totalqty'],
-            'sku': ['sku', 'skuno', 'skunumber', 'sku#', 'itemcode'],
-            'store': ['store', 'storename', 'location'],
-            'case_size': ['casesize', 'packsize', 'size', 'container', 'containersize'],
+            'ITEM      ': ['item', 'productdescription', 'description', 'productdesc', 'product', 'itemname'],
+            'STORE      ': ['store', 'storename', 'location', 'customername'],
+            'Supplier': ['supplier', 'vendor', 'distributor', 'brand'],
+            'PACK SIZE      ': ['packsize', 'casesize', 'size', 'container', 'containersize'],
+            'CATEGORY      ': ['category', 'productcategory', 'itemcategory', 'type'],
+            'Case Size': ['casesize', 'packsize', 'size'],
+            'Container Size': ['containersize', 'size'],
+            'VENDOR      ': ['vendor', 'supplier'],
+            'Total Cases': ['totalcases', 'quantity', 'qty', 'cases', 'amount', 'totalqty'],
+            'QUANTITY      ': ['quantity', 'qty', 'totalcases', 'cases', 'amount', 'totalqty'],
+            'AMOUNT      ': ['amount', 'totalamount', 'invoiceamount', 'cost', 'extendedprice', 'invoicetotal', 'linetotal'],
+            'Unit of Measure': ['unitofmeasure', 'uom', 'unit'],
+            'CU PRICE      ': ['cuprice', 'unitcost', 'unitprice', 'price', 'costperunit'],
         }
 
-        # Find best match for each required column
-        found_cols = {}
-        for key, variants in col_map.items():
+        # Build the output DataFrame with the exact columns and order
+        output_cols = [
+            'ITEM      ', 'STORE      ', 'Supplier', 'PACK SIZE      ', 'CATEGORY      ',
+            'Case Size', 'Container Size', 'VENDOR      ', 'Total Cases', 'QUANTITY      ',
+            'AMOUNT      ', 'Unit of Measure', 'CU PRICE      '
+        ]
+        purchase_log = pd.DataFrame()
+        for out_col in output_cols:
             found = None
-            for v in variants:
-                if v in df.columns:
-                    found = v
+            for candidate in col_map[out_col]:
+                if candidate in df.columns:
+                    found = candidate
                     break
             if found:
-                found_cols[key] = found
-                logger.info(f"Mapped column: {key} -> {found}")
+                purchase_log[out_col] = df[found]
             else:
-                found_cols[key] = None
-                logger.warning(f"Missing expected column for '{key}'. Will fill with empty values.")
-                df[key] = ''  # Add empty column if missing
-
-        # Always use the mapped or fallback columns
-        item_col = found_cols['item'] if found_cols['item'] else 'item'
-        supplier_col = found_cols['supplier'] if found_cols['supplier'] else 'supplier'
-        quantity_col = found_cols['quantity'] if found_cols['quantity'] else 'quantity'
-        sku_col = found_cols['sku'] if found_cols['sku'] else 'sku'
-        store_col = found_cols['store'] if found_cols['store'] else 'store'
-        case_size_col = found_cols['case_size'] if found_cols['case_size'] else 'case_size'
-
-        # Build Purchase Log with all required columns (fill missing with empty)
-        purchase_log_cols = [item_col, store_col, supplier_col, case_size_col, sku_col, quantity_col]
-        for col in purchase_log_cols:
-            if col not in df.columns:
-                df[col] = ''
-        purchase_log = df[purchase_log_cols].copy()
-        purchase_log.columns = ['ITEM', 'STORE', 'Supplier', 'Case Size', 'SKU', 'QUANTITY']
+                # Fallbacks for special columns
+                if out_col == 'Supplier' and 'vendor' in df.columns:
+                    purchase_log[out_col] = df['vendor']
+                elif out_col == 'VENDOR      ' and 'supplier' in df.columns:
+                    purchase_log[out_col] = df['supplier']
+                elif out_col == 'Case Size' and 'PACK SIZE      ' in purchase_log.columns:
+                    purchase_log[out_col] = purchase_log['PACK SIZE      ']
+                elif out_col == 'Container Size' and 'PACK SIZE      ' in purchase_log.columns:
+                    purchase_log[out_col] = purchase_log['PACK SIZE      ']
+                elif out_col == 'Total Cases' and 'QUANTITY      ' in purchase_log.columns:
+                    purchase_log[out_col] = purchase_log['QUANTITY      ']
+                else:
+                    purchase_log[out_col] = ''
         logger.info(f"Created Purchase Log with {len(purchase_log)} rows and columns: {list(purchase_log.columns)}")
 
         # Item Totals
-        item_totals = purchase_log.groupby(['Supplier', 'ITEM'])['QUANTITY'].apply(lambda x: pd.to_numeric(x, errors='coerce').sum()).reset_index()
-        item_totals = item_totals.rename(columns={'QUANTITY': 'SUM of Total Cases'})
+        item_totals = purchase_log.groupby(['Supplier', 'ITEM      '])['Total Cases'].apply(lambda x: pd.to_numeric(x, errors='coerce').sum()).reset_index()
+        item_totals = item_totals.rename(columns={'Total Cases': 'SUM of Total Cases'})
         logger.info(f"Created Item Totals with {len(item_totals)} rows")
 
         # Supplier Totals
-        supplier_totals = purchase_log.groupby('Supplier')['QUANTITY'].apply(lambda x: pd.to_numeric(x, errors='coerce').sum()).reset_index()
-        supplier_totals = supplier_totals.rename(columns={'QUANTITY': 'SUM of Total Cases'})
+        supplier_totals = purchase_log.groupby('Supplier')['Total Cases'].apply(lambda x: pd.to_numeric(x, errors='coerce').sum()).reset_index()
+        supplier_totals = supplier_totals.rename(columns={'Total Cases': 'SUM of Total Cases'})
         supplier_totals['Unnamed: 2'] = ''
         logger.info(f"Created Supplier Totals with {len(supplier_totals)} rows")
 
@@ -957,9 +963,9 @@ def normalize_bbb(bev_bytes, references=None):
         summary = {
             'total_rows': int(len(purchase_log)),
             'unique_suppliers': int(purchase_log['Supplier'].nunique()),
-            'unique_items': int(purchase_log['ITEM'].nunique()),
-            'total_cases': float(pd.to_numeric(purchase_log['QUANTITY'], errors='coerce').sum()),
-            'avg_cases_per_item': float(pd.to_numeric(purchase_log['QUANTITY'], errors='coerce').mean() or 0)
+            'unique_items': int(purchase_log['ITEM      '].nunique()),
+            'total_cases': float(pd.to_numeric(purchase_log['Total Cases'], errors='coerce').sum()),
+            'avg_cases_per_item': float(pd.to_numeric(purchase_log['Total Cases'], errors='coerce').mean() or 0)
         }
         summary = sanitize_summary(summary)
         return {
