@@ -1029,7 +1029,15 @@ def normalize_bbb(bev_bytes, references=None):
         
         # Sample data for logging
         top_suppliers = purchase_log['Supplier'].value_counts().head(5).to_dict()
-        total_cases_sum = purchase_log['Total Cases'].sum()
+        
+        # Get total cases sum from available column
+        if 'Total Cases' in purchase_log.columns:
+            total_cases_sum = purchase_log['Total Cases'].sum()
+        elif 'QUANTITY      ' in purchase_log.columns:
+            total_cases_sum = purchase_log['QUANTITY      '].sum()
+        else:
+            total_cases_sum = 0
+            
         logger.info(f"Sample Purchase Log data - First 3 rows:")
         logger.info(f"Suppliers: {top_suppliers}")
         logger.info(f"Total Cases sum: {total_cases_sum}")
