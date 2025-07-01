@@ -540,6 +540,18 @@ class BBBNormalizer:
             logger.info(f"Unmatched items: {unmatched_count} ({unmatched_count/total_count*100:.1f}%)")
             logger.info(f"Matched items: {total_count - unmatched_count} ({(total_count - unmatched_count)/total_count*100:.1f}%)")
             
+            # After mapping, if QUANTITY      is all NaN, try to fill from total or amount
+            if df['QUANTITY      '].isna().all():
+                if 'total' in df.columns and pd.api.types.is_numeric_dtype(df['total']):
+                    df['QUANTITY      '] = df['total']
+                    logger.info("Filled QUANTITY      from total column (fallback)")
+                elif 'amount' in df.columns and pd.api.types.is_numeric_dtype(df['amount']):
+                    df['QUANTITY      '] = df['amount']
+                    logger.info("Filled QUANTITY      from amount column (fallback)")
+            # Ensure Total Cases is filled from QUANTITY      
+            if 'Total Cases' in df.columns:
+                df['Total Cases'] = df['QUANTITY      ']
+            
             return df
             
         except Exception as e:
