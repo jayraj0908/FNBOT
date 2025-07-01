@@ -574,6 +574,10 @@ class BBBNormalizer:
                     df['Total Cases'] = df['total']
                     logger.info('[FINAL] Directly filled Total Cases from total column')
 
+            # Debug: Log columns and sample values at the very end before returning
+            logger.info(f"[FINAL DEBUG] Columns at return: {list(df.columns)}")
+            logger.info(f"[FINAL DEBUG] First 5 rows at return: {df.head(5).to_dict('records')}")
+
             return df
             
         except Exception as e:
