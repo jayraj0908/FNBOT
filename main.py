@@ -152,7 +152,14 @@ async def download_file(filename: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    # Get port from environment variable (for Railway)
-    port = int(os.environ.get("PORT", 8000))
-    
-    uvicorn.run(app, host="0.0.0.0", port=port) 
+    try:
+        # Get port from environment variable (for Railway)
+        port = int(os.environ.get("PORT", 8000))
+        logger.info(f"Starting server on port {port}")
+        logger.info(f"Environment: PORT={os.environ.get('PORT', '8000')}")
+        
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    except Exception as e:
+        logger.error(f"Failed to start server: {e}")
+        print(f"ERROR: Failed to start server: {e}")
+        sys.exit(1) 
