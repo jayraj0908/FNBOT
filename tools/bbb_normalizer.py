@@ -18,6 +18,7 @@ import re
 from io import BytesIO
 from fuzzywuzzy import process
 import traceback
+import math
 
 # Import utility functions
 try:
@@ -848,6 +849,17 @@ def fuzzy_match(val, choices, threshold=80):
         return choices[best_match[2]]  # Return original case
     return None
 
+def sanitize_summary(summary):
+    sanitized = {}
+    for k, v in summary.items():
+        if v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v))):
+            sanitized[k] = 0
+        elif isinstance(v, (np.generic, np.integer, np.floating)):
+            sanitized[k] = v.item()
+        else:
+            sanitized[k] = v
+    return sanitized
+
 def normalize_bbb(bev_bytes, references=None):
     """
     Normalize BBB (Beverage) data with supplier matching.
@@ -949,7 +961,7 @@ def normalize_bbb(bev_bytes, references=None):
             'total_cases': float(pd.to_numeric(purchase_log['QUANTITY'], errors='coerce').sum()),
             'avg_cases_per_item': float(pd.to_numeric(purchase_log['QUANTITY'], errors='coerce').mean() or 0)
         }
-
+        summary = sanitize_summary(summary)
         return {
             "success": True,
             "filename": filename,
