@@ -943,11 +943,11 @@ def normalize_bbb(bev_bytes, references=None):
 
         # Summary
         summary = {
-            'total_rows': len(purchase_log),
-            'unique_suppliers': purchase_log['Supplier'].nunique(),
-            'unique_items': purchase_log['ITEM'].nunique(),
-            'total_cases': pd.to_numeric(purchase_log['QUANTITY'], errors='coerce').sum(),
-            'avg_cases_per_item': pd.to_numeric(purchase_log['QUANTITY'], errors='coerce').mean()
+            'total_rows': int(len(purchase_log)),
+            'unique_suppliers': int(purchase_log['Supplier'].nunique()),
+            'unique_items': int(purchase_log['ITEM'].nunique()),
+            'total_cases': float(pd.to_numeric(purchase_log['QUANTITY'], errors='coerce').sum()),
+            'avg_cases_per_item': float(pd.to_numeric(purchase_log['QUANTITY'], errors='coerce').mean() or 0)
         }
 
         return {
