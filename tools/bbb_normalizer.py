@@ -557,6 +557,15 @@ class BBBNormalizer:
             if 'Total Cases' in df.columns:
                 df['Total Cases'] = df['QUANTITY      ']
             
+            # Final fallback: if QUANTITY      and Total Cases are all NaN, fill from 'total' if it exists
+            if 'total' in df.columns:
+                if df['QUANTITY      '].isna().all():
+                    df['QUANTITY      '] = df['total']
+                    logger.info("Final fallback: Filled QUANTITY      from total column")
+                if df['Total Cases'].isna().all():
+                    df['Total Cases'] = df['total']
+                    logger.info("Final fallback: Filled Total Cases from total column")
+            
             return df
             
         except Exception as e:
