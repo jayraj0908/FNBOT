@@ -115,11 +115,6 @@ class BBBNormalizer:
         
         logger.info(f"Original columns: {list(df.columns)}")
         
-        # Clean and convert 'total' column to numeric if present
-        if 'total' in df.columns:
-            df['total'] = pd.to_numeric(df['total'], errors='coerce')
-            logger.info("Cleaned and converted 'total' column to numeric")
-        
         # Comprehensive column mappings with pattern matching
         column_mappings = {
             # Item mappings (product descriptions)
@@ -232,17 +227,7 @@ class BBBNormalizer:
                     logger.info(f"Mapped vendor from: {candidate}")
                     break
         
-        # If 'total' exists, clean it: strip, remove commas, convert to float
-        if 'total' in df.columns:
-            df['total'] = df['total'].astype(str).str.replace(',', '').str.strip()
-            df['total'] = pd.to_numeric(df['total'], errors='coerce')
-            logger.info(f"[CLEAN DEBUG] First 5 values of 'total' after cleaning: {df['total'].head(5).tolist()}")
-        # If 'total' exists and 'quantity' does not, set 'quantity' = 'total'
-        if 'total' in df.columns and 'quantity' not in df.columns:
-            df['quantity'] = df['total']
-            logger.info("Mapped 'total' to 'quantity' for files like Moxies/Second Rodeo")
-
-        # Ensure required columns exist with defaults, but do NOT overwrite existing 'quantity'
+        # Ensure required columns exist with defaults
         required_columns = ['item', 'store', 'vendor', 'pack_size', 'category', 'quantity', 'amount', 'cu_price', 'unit_measure']
         for col in required_columns:
             if col not in df.columns:
@@ -550,45 +535,108 @@ class BBBNormalizer:
             logger.info(f"Unmatched items: {unmatched_count} ({unmatched_count/total_count*100:.1f}%)")
             logger.info(f"Matched items: {total_count - unmatched_count} ({(total_count - unmatched_count)/total_count*100:.1f}%)")
             
-            # Debug: Log columns and sample values before fallback
-            logger.info(f"[DEBUG] Columns before fallback: {list(df.columns)}")
-            logger.info(f"[DEBUG] Sample values before fallback: {df.head(3).to_dict('records')}")
-
-            # Only apply fallback if original input had 'total' but not 'quantity'
-            original_cols = set(df.columns)
-            if 'total' in original_cols and 'quantity' not in original_cols:
-                if 'total' in df.columns:
-                    if df['quantity'].isna().all():
-                        df['quantity'] = df['total']
-                        logger.info("[DEBUG] Fallback: Filled quantity from total column (Moxies/Second Rodeo style)")
-                if 'Total Cases' in df.columns:
-                    if df['Total Cases'].isna().all():
-                        df['Total Cases'] = df['total']
-                        logger.info("[DEBUG] Fallback: Filled Total Cases from total column (Moxies/Second Rodeo style)")
-
-            # Debug: Log columns and sample values after fallback
-            logger.info(f"[DEBUG] Columns after fallback: {list(df.columns)}")
-            logger.info(f"[DEBUG] Sample values after fallback: {df.head(3).to_dict('records')}")
-
-            # FINAL direct mapping: if 'total' exists and is numeric, and QUANTITY/Total Cases are all NaN, fill them from 'total'
-            if 'total' in df.columns and pd.api.types.is_numeric_dtype(df['total']):
-                if df['quantity'].isna().all():
-                    df['quantity'] = df['total']
-                    logger.info('[FINAL] Directly filled quantity from total column')
-                if df['Total Cases'].isna().all():
-                    df['Total Cases'] = df['total']
-                    logger.info('[FINAL] Directly filled Total Cases from total column')
-
-            # Debug: Log columns and sample values at the very end before returning
-            logger.info(f"[FINAL DEBUG] Columns at return: {list(df.columns)}")
-            logger.info(f"[FINAL DEBUG] First 5 rows at return: {df.head(5).to_dict('records')}")
-
             return df
             
         except Exception as e:
             logger.error(f"Error processing input file: {str(e)}")
             raise
     
+    def _calculate_total_cases_from_quantity(self, quantity: float, pack_size: str) -> float:
+        """
+        Calculate Total Cases from QUANTITY based on pack size conversion logic from 60 Vines master
+        This implements the same conversion ratios used in the 60 Vines master data
+        """
+        if pd.isna(quantity) or pd.isna(pack_size) or not pack_size:
+            return quantity if not pd.isna(quantity) else 0.0
+        
+        pack_str = str(pack_size).upper().strip()
+        
+        # Conversion ratios based on 60 Vines master data analysis
+        # Key patterns and their conversion ratios:
+        
+        # Large format containers (kegs, large bottles)
+        if any(term in pack_str for term in ['19.5L', '19.5 L', '19.5L', '19.5 L']):
+            return quantity * 2.17  # 19.5L conversion ratio
+        elif any(term in pack_str for term in ['20L', '20 L']):
+            return quantity * 2.22  # 20L conversion ratio
+        elif any(term in pack_str for term in ['19L', '19 L']):
+            return quantity * 2.17  # 19L conversion ratio (same as 19.5L)
+        elif any(term in pack_str for term in ['19.5GAL', '19.5 GAL']):
+            return quantity * 2.17  # 19.5 gallon conversion ratio
+        
+        # Standard bottle sizes
+        elif any(term in pack_str for term in ['750ML', '750 ML', '750ml']):
+            return quantity * 0.083333  # 750ml conversion ratio
+        elif any(term in pack_str for term in ['375ML', '375 ML', '375ml']):
+            return quantity * 1.0  # 375ml conversion ratio
+        elif any(term in pack_str for term in ['500ML', '500 ML', '500ml']):
+            return quantity * 0.06  # 500ml conversion ratio (from Warres example)
+        
+        # Liter sizes
+        elif any(term in pack_str for term in ['1L', '1 L', '1LITER']):
+            return quantity * 0.111111  # 1L conversion ratio
+        elif any(term in pack_str for term in ['2L', '2 L', '2LITER']):
+            return quantity * 0.222222  # 2L conversion ratio (estimated)
+        
+        # Multi-pack patterns
+        elif re.search(r'(\d+)\s*X\s*750ML', pack_str):
+            return quantity * 0.083333  # Multi-pack 750ml
+        elif re.search(r'(\d+)\s*X\s*1L', pack_str):
+            return quantity * 0.111111  # Multi-pack 1L
+        elif re.search(r'(\d+)\s*X\s*375ML', pack_str):
+            return quantity * 1.0  # Multi-pack 375ml
+        
+        # Case patterns
+        elif re.search(r'(\d+)\s*X\s*750ML', pack_str):
+            case_size = int(re.search(r'(\d+)', pack_str).group(1))
+            if case_size == 6:
+                return quantity * 0.5  # 6 x 750ml conversion ratio
+            elif case_size == 12:
+                return quantity * 1.0  # 12 x 750ml conversion ratio
+            elif case_size == 24:
+                return quantity * 1.0  # 24 x 750ml conversion ratio
+            else:
+                return quantity * (case_size * 0.083333)  # Generic case conversion
+        
+        elif re.search(r'(\d+)\s*X\s*1L', pack_str):
+            case_size = int(re.search(r'(\d+)', pack_str).group(1))
+            if case_size == 6:
+                return quantity * 0.666667  # 6 x 1L conversion ratio
+            elif case_size == 12:
+                return quantity * 1.333333  # 12 x 1L conversion ratio
+            else:
+                return quantity * (case_size * 0.111111)  # Generic case conversion
+        
+        # Can patterns
+        elif re.search(r'(\d+)\s*X\s*12OZ', pack_str) or re.search(r'(\d+)\s*X\s*12FL\.?OZ', pack_str):
+            case_size = int(re.search(r'(\d+)', pack_str).group(1))
+            if case_size == 24:
+                return quantity * 1.0  # 24 x 12oz conversion ratio
+            else:
+                return quantity * 1.0  # Generic 12oz case conversion
+        
+        elif re.search(r'(\d+)\s*X\s*16OZ', pack_str) or re.search(r'(\d+)\s*X\s*16FL\.?OZ', pack_str):
+            case_size = int(re.search(r'(\d+)', pack_str).group(1))
+            if case_size == 24:
+                return quantity * 1.0  # 24 x 16oz conversion ratio
+            else:
+                return quantity * 1.0  # Generic 16oz case conversion
+        
+        # Individual can/bottle patterns
+        elif any(term in pack_str for term in ['12OZ', '12 OZ', '12FL.OZ', '12 FL OZ']):
+            return quantity * 1.0  # Individual 12oz conversion ratio
+        elif any(term in pack_str for term in ['16OZ', '16 OZ', '16FL.OZ', '16 FL OZ']):
+            return quantity * 1.0  # Individual 16oz conversion ratio
+        
+        # Keg patterns
+        elif any(term in pack_str for term in ['KEG', 'BBL', 'BARREL']):
+            return quantity * 2.17  # Keg conversion ratio (same as 19.5L)
+        
+        # Default fallback - use quantity as is
+        else:
+            logger.warning(f"No conversion pattern found for pack size: {pack_size}, using quantity as is")
+            return quantity
+
     def create_purchase_log_sheet(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Create Purchase Log sheet with exact column format from reference file
@@ -622,11 +670,6 @@ class BBBNormalizer:
             if old_col in purchase_log.columns:
                 purchase_log[new_col] = purchase_log[old_col]
         
-        # Always map 'quantity' to 'QUANTITY      ' and 'Total Cases'
-        if 'quantity' in purchase_log.columns:
-            purchase_log['QUANTITY      '] = purchase_log['quantity']
-            purchase_log['Total Cases'] = purchase_log['quantity']
-        
         # Add missing columns with proper values
         missing_columns = set(required_columns) - set(purchase_log.columns)
         for col in missing_columns:
@@ -642,6 +685,16 @@ class BBBNormalizer:
             elif col == 'Container Size':
                 # Try to extract container size from pack size or use default
                 purchase_log[col] = purchase_log['PACK SIZE      '].apply(self._extract_container_size)
+            elif col == 'Total Cases':
+                # Apply conversion logic from QUANTITY to Total Cases based on pack size
+                if 'QUANTITY      ' in purchase_log.columns and 'PACK SIZE      ' in purchase_log.columns:
+                    purchase_log[col] = purchase_log.apply(
+                        lambda row: self._calculate_total_cases_from_quantity(
+                            row['QUANTITY      '], row['PACK SIZE      ']
+                        ), axis=1
+                    )
+                else:
+                    purchase_log[col] = 1
             elif col == 'Unit of Measure':
                 if 'Unit of Measure' in purchase_log.columns:
                     purchase_log[col] = purchase_log['Unit of Measure']
@@ -658,11 +711,8 @@ class BBBNormalizer:
         logger.info(f"Sample Purchase Log data - First 3 rows:")
         logger.info(f"Suppliers: {purchase_log['Supplier'].value_counts().head().to_dict()}")
         logger.info(f"Total Cases sum: {purchase_log['Total Cases'].sum()}")
+        logger.info(f"QUANTITY sum: {purchase_log['QUANTITY      '].sum()}")
         
-        # Debug: Log columns and sample values at the very end before returning
-        logger.info(f"[FINAL DEBUG] Columns at return: {list(purchase_log.columns)}")
-        logger.info(f"[FINAL DEBUG] First 5 rows at return: {purchase_log.head(5).to_dict('records')}")
-
         return purchase_log
     
     def _extract_case_size(self, pack_size: str) -> int:
