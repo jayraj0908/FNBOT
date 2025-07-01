@@ -232,6 +232,11 @@ class BBBNormalizer:
                     logger.info(f"Mapped vendor from: {candidate}")
                     break
         
+        # If 'total' exists, clean it: strip, remove commas, convert to float
+        if 'total' in df.columns:
+            df['total'] = df['total'].astype(str).str.replace(',', '').str.strip()
+            df['total'] = pd.to_numeric(df['total'], errors='coerce')
+            logger.info(f"[CLEAN DEBUG] First 5 values of 'total' after cleaning: {df['total'].head(5).tolist()}")
         # If 'total' exists and 'quantity' does not, set 'quantity' = 'total'
         if 'total' in df.columns and 'quantity' not in df.columns:
             df['quantity'] = df['total']
