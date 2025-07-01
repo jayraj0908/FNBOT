@@ -867,29 +867,48 @@ def normalize_bbb(bev_bytes, references=None):
         # Load the uploaded file
         try:
             df = pd.read_excel(BytesIO(bev_bytes), header=None)
-        except:
-            # Try CSV if Excel fails
-            df = pd.read_csv(BytesIO(bev_bytes), header=None)
-        
+        except Exception as e:
+            logger.warning(f"Excel load failed: {e}, trying CSV.")
+            try:
+                df = pd.read_csv(BytesIO(bev_bytes), header=None)
+            except Exception as e2:
+                logger.error(f"Failed to load file as Excel or CSV: {e2}")
+                return {"error": "Could not read file as Excel or CSV."}
+
         logger.info(f"Loaded input file with {len(df)} rows and columns: {df.columns.tolist()}")
-        
+
         # Detect header row and clean data
         expected_cols = ['store', 'sku', 'item', 'pack size', 'category', 'vendor', 'quantity', 'amount']
         header_row = detect_header_row(df, expected_cols)
-        
+        if header_row is None:
+            logger.error("Could not detect header row in input file.")
+            return {"error": "Could not detect header row in input file."}
+
         # Set headers and clean data
         df.columns = df.iloc[header_row]
         df = df.iloc[header_row + 1:].reset_index(drop=True)
-        
-        # Clean column names
-        df.columns = df.columns.str.lower().str.strip().str.replace(' ', '_')
-        logger.info(f"Original columns: {df.columns.tolist()}")
-        
-        # Map columns to standard names
+
+        # Sanitize column names
+        df.columns = df.columns.str.strip().str.lower()
+        logger.info(f"Sanitized columns: {df.columns.tolist()}")
+
+        # Column mapping fallback for 'item'
+        item_column = None
+        if 'item' in df.columns:
+            item_column = 'item'
+        elif 'product_description' in df.columns:
+            item_column = 'product_description'
+        elif 'description' in df.columns:
+            item_column = 'description'
+        else:
+            logger.error("ERROR: Required column 'item' or fallback 'product_description'/'description' not found in input file.")
+            return {"error": "Required column 'item' or fallback 'product_description'/'description' not found in input file."}
+
+        # Map columns to standard names (robust)
         column_mapping = {}
         for col in df.columns:
             col_lower = col.lower().strip()
-            if 'item' in col_lower:
+            if col_lower == item_column:
                 column_mapping[col] = 'item'
             elif 'vendor' in col_lower:
                 column_mapping[col] = 'vendor'
@@ -901,47 +920,44 @@ def normalize_bbb(bev_bytes, references=None):
                 column_mapping[col] = 'amount'
             elif 'cu price' in col_lower:
                 column_mapping[col] = 'cu_price'
-        
+            elif 'store' in col_lower:
+                column_mapping[col] = 'store'
+
         # Apply column mapping
         for old_col, new_col in column_mapping.items():
             if old_col in df.columns:
                 df[new_col] = df[old_col]
                 logger.info(f"Mapped column: {old_col} -> {new_col}")
-        
+
         # Extract category from item descriptions
-        df['category'] = df['item'].astype(str).str.extract(r'(\w+)', expand=False)
-        logger.info("Extracted category from item descriptions")
-        
+        df['category'] = df[item_column].astype(str).str.extract(r'(\\w+)', expand=False)
+        logger.info(f"Extracted category from {item_column}")
+
         # Add default columns if missing
         if 'store' not in df.columns:
             df['store'] = 'Default Store'
             logger.info("Added default column: store")
-        
         if 'amount' not in df.columns:
             df['amount'] = 0
             logger.info("Added default column: amount")
-        
         if 'cu_price' not in df.columns:
             df['cu_price'] = 0
             logger.info("Added default column: cu_price")
-        
         if 'unit_measure' not in df.columns:
             df['unit_measure'] = 'Case'
             logger.info("Added default column: unit_measure")
-        
+
         logger.info(f"Final columns: {df.columns.tolist()}")
-        
+
         # Clean numeric columns
         for col in ['amount', 'quantity']:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.replace('$', '').str.replace(',', '')
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 logger.info(f"Normalized amount column: {col}")
-        
+
         # Supplier matching with master list
         logger.info("Starting supplier matching...")
-        
-        # Load master supplier list
         master_supplier_path = "60_Vines_Item_Supplier_List_Master.xlsx"
         if os.path.exists(master_supplier_path):
             master_df = pd.read_excel(master_supplier_path)
@@ -950,36 +966,31 @@ def normalize_bbb(bev_bytes, references=None):
         else:
             master_suppliers = []
             logger.warning("Master supplier list not found, using item names as suppliers")
-        
+
         # Perform supplier matching
         matched_count = 0
         for idx, row in df.iterrows():
-            item_name = str(row.get('item', '')).lower()
-            
+            item_name = str(row.get(item_column, '')).lower()
             if master_suppliers:
                 best_match, confidence = fuzzy_match_with_fallback(item_name, master_suppliers, threshold=50)
                 if best_match:
                     df.at[idx, 'supplier'] = best_match
                     status = "Exact match" if confidence >= 90 else "High confidence" if confidence >= 70 else "Medium confidence" if confidence >= 50 else "Low confidence"
-                    logger.info(f"Row {idx}: '{row.get('item', '')}' -> '{best_match}' (confidence: {confidence:.2f}, status: {status})")
+                    logger.info(f"Row {idx}: '{row.get(item_column, '')}' -> '{best_match}' (confidence: {confidence:.2f}, status: {status})")
                     matched_count += 1
                 else:
-                    df.at[idx, 'supplier'] = row.get('item', 'Unknown Supplier')
+                    df.at[idx, 'supplier'] = row.get(item_column, 'Unknown Supplier')
             else:
-                df.at[idx, 'supplier'] = row.get('item', 'Unknown Supplier')
-            
+                df.at[idx, 'supplier'] = row.get(item_column, 'Unknown Supplier')
             if idx % 1000 == 0 and idx > 0:
                 logger.info(f"Processed {idx} rows for supplier matching")
-        
         logger.info(f"Completed supplier matching for {len(df)} items")
         logger.info(f"Unmatched items: {len(df) - matched_count} ({(len(df) - matched_count)/len(df)*100:.1f}%)")
         logger.info(f"Matched items: {matched_count} ({matched_count/len(df)*100:.1f}%)")
-        
+
         # Create Purchase Log with available columns
         available_cols = []
         col_mapping = {}
-        
-        # Map available columns
         if 'item' in df.columns:
             available_cols.append('item')
             col_mapping['item'] = 'ITEM      '
@@ -1004,32 +1015,25 @@ def normalize_bbb(bev_bytes, references=None):
         if 'cu_price' in df.columns:
             available_cols.append('cu_price')
             col_mapping['cu_price'] = 'CU PRICE      '
-        
         # Add supplier column (will be populated by matching)
-        df['supplier'] = df.get('item', 'Unknown Supplier')
+        df['supplier'] = df.get(item_column, 'Unknown Supplier')
         available_cols.append('supplier')
         col_mapping['supplier'] = 'Supplier'
-        
         # Add missing columns with defaults
         if 'case_size' not in df.columns:
             df['case_size'] = 1
         available_cols.append('case_size')
         col_mapping['case_size'] = 'Case Size'
-        
         if 'unit_measure' not in df.columns:
             df['unit_measure'] = 'Case'
         available_cols.append('unit_measure')
         col_mapping['unit_measure'] = 'Unit of Measure'
-        
         # Create purchase log with available columns
         purchase_log = df[available_cols].copy()
         purchase_log.columns = [col_mapping[col] for col in available_cols]
-        
         logger.info(f"Created Purchase Log with {len(purchase_log)} rows and columns: {purchase_log.columns.tolist()}")
-        
         # Sample data for logging
         top_suppliers = purchase_log['Supplier'].value_counts().head(5).to_dict()
-        
         # Get total cases sum from available column
         if 'Total Cases' in purchase_log.columns:
             total_cases_sum = purchase_log['Total Cases'].sum()
@@ -1037,11 +1041,9 @@ def normalize_bbb(bev_bytes, references=None):
             total_cases_sum = purchase_log['QUANTITY      '].sum()
         else:
             total_cases_sum = 0
-            
         logger.info(f"Sample Purchase Log data - First 3 rows:")
         logger.info(f"Suppliers: {top_suppliers}")
         logger.info(f"Total Cases sum: {total_cases_sum}")
-        
         # Create Item Totals
         if 'QUANTITY      ' in purchase_log.columns:
             group_cols = ['Supplier', 'ITEM      ']
@@ -1049,42 +1051,34 @@ def normalize_bbb(bev_bytes, references=None):
         else:
             group_cols = ['Supplier', 'ITEM      ']
             sum_col = 'QUANTITY      '
-        
         item_totals = purchase_log.groupby(group_cols)[sum_col].sum().reset_index()
         # Rename the sum column to the expected name
         item_totals = item_totals.rename(columns={sum_col: 'SUM of Total Cases'})
-        
         logger.info(f"Created Item Totals with {len(item_totals)} rows")
         logger.info(f"Item Totals - Total SUM of Total Cases: {item_totals['SUM of Total Cases'].sum()}")
         logger.info(f"Item Totals - Sample data (first 3 rows):")
         logger.info(f"Sample: {item_totals.head(3).to_dict('records')}")
-        
         # Create Supplier Totals
         if 'QUANTITY      ' in purchase_log.columns:
             sum_col = 'QUANTITY      '
         else:
             sum_col = 'QUANTITY      '
-        
         supplier_totals = purchase_log.groupby('Supplier')[sum_col].sum().reset_index()
         # Rename the sum column to the expected name
         supplier_totals = supplier_totals.rename(columns={sum_col: 'SUM of Total Cases'})
         # Add the required empty column
         supplier_totals['Unnamed: 2'] = ''
-        
         logger.info(f"Created Supplier Totals with {len(supplier_totals)} rows")
         logger.info(f"Supplier Totals - Total SUM of Total Cases: {supplier_totals['SUM of Total Cases'].sum()}")
         logger.info(f"Supplier Totals - Sample data (first 3 rows):")
         logger.info(f"Sample: {supplier_totals.head(3).to_dict('records')}")
-        
         # Save to Excel
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
             purchase_log.to_excel(writer, sheet_name='Purchase Log', index=False)
             item_totals.to_excel(writer, sheet_name='Item Totals', index=False)
             supplier_totals.to_excel(writer, sheet_name='Supplier Totals', index=False)
-        
         logger.info(f"Saved output to: {output_path}")
         logger.info(f"BBB normalization complete. Output saved to: {filename}")
-        
         # Create summary statistics
         summary_stats = {
             'total_rows': len(purchase_log),
@@ -1094,12 +1088,10 @@ def normalize_bbb(bev_bytes, references=None):
             'avg_cases_per_item': float(total_cases_sum / len(item_totals)) if len(item_totals) > 0 else 0,
             'supplier_match_rate': float(matched_count / len(df) * 100) if len(df) > 0 else 0
         }
-        
         return {
             "filename": filename,
             "summary": summary_stats
         }
-        
     except Exception as e:
         logger.error(f"Error in BBB normalization: {e}\n{traceback.format_exc()}")
-        raise ValueError(str(e)) 
+        return {"error": str(e)} 
