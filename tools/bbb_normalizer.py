@@ -125,6 +125,8 @@ class BBBNormalizer:
             'item_name': 'item',
             'item_description': 'item',
             'name': 'item',
+            'spirit': 'item',  # Moxies specific
+            'wine': 'item',    # Moxies specific
             
             # Store mappings
             'customer_name': 'store',
@@ -150,6 +152,8 @@ class BBBNormalizer:
             'unit_count': 'quantity',
             'case_count': 'quantity',
             'pack_count': 'quantity',
+            '6 mo cases': 'quantity',  # Moxies specific
+            '6_mo_cases': 'quantity',  # Moxies specific (normalized)
             
             # Amount/Cost mappings
             'total': 'amount',
@@ -190,6 +194,7 @@ class BBBNormalizer:
             'size': 'pack_size',
             'volume': 'pack_size',
             'capacity': 'pack_size',
+            'unit': 'pack_size',  # Moxies specific
             
             # Category mappings
             'category': 'category',
@@ -249,8 +254,8 @@ class BBBNormalizer:
         for col in df.columns:
             col_lower = col.lower()
             
-            # Pack size patterns
-            if any(pattern in col_lower for pattern in ['pack', 'size', 'volume', 'ml', 'l', 'oz', 'fl']):
+            # Pack size patterns - but avoid mapping supplier columns
+            if any(pattern in col_lower for pattern in ['pack', 'size', 'volume', 'ml', 'l', 'oz', 'fl']) and 'supplier' not in col_lower:
                 if 'pack_size' not in df.columns:
                     df['pack_size'] = df[col]
                     logger.info(f"Pattern mapped pack_size from: {col}")
@@ -261,17 +266,27 @@ class BBBNormalizer:
                     df['category'] = df[col]
                     logger.info(f"Pattern mapped category from: {col}")
             
-            # Vendor patterns
+            # Vendor patterns - prioritize supplier mapping
             elif any(pattern in col_lower for pattern in ['vendor', 'supplier', 'distributor', 'retailer']):
                 if 'vendor' not in df.columns:
                     df['vendor'] = df[col]
                     logger.info(f"Pattern mapped vendor from: {col}")
             
             # Unit measure patterns
-            elif any(pattern in col_lower for pattern in ['uom', 'unit', 'measure']):
+            elif any(pattern in col_lower for pattern in ['uom', 'unit', 'measure']) and 'supplier' not in col_lower:
                 if 'unit_measure' not in df.columns:
                     df['unit_measure'] = df[col]
                     logger.info(f"Pattern mapped unit_measure from: {col}")
+            
+            # Special handling for Moxies files - map Unit column to pack_size
+            elif col_lower == 'unit' and 'pack_size' not in df.columns:
+                df['pack_size'] = df[col]
+                logger.info(f"Pattern mapped pack_size from: {col} (Moxies Unit column)")
+            
+            # Special handling for Moxies files - map 6 Mo Cases to quantity
+            elif '6 mo cases' in col_lower and 'quantity' not in df.columns:
+                df['quantity'] = df[col]
+                logger.info(f"Pattern mapped quantity from: {col} (Moxies 6 Mo Cases)")
     
     def _extract_pack_size_from_description(self, description: str) -> str:
         """Extract pack size from item description using regex patterns"""
