@@ -75,24 +75,33 @@ class BBBNormalizer:
             
             # Normalize column names using utility function
             supplier_df = normalize_column_names(supplier_df)
+            logger.info(f"Supplier reference columns after normalization: {list(supplier_df.columns)}")
+            
+            # Find the item/product description column
+            item_col = None
+            for col in supplier_df.columns:
+                if 'item' in col or 'product' in col:
+                    item_col = col
+                    break
+            if not item_col:
+                logger.error("No item/product description column found in supplier reference file!")
+                self.supplier_items = []
+                return
+            
+            # Filter out summary/total rows
+            before_rows = len(supplier_df)
+            supplier_df = supplier_df[(supplier_df[item_col].notna()) & (~supplier_df['supplier'].astype(str).str.lower().str.contains('total'))]
+            after_rows = len(supplier_df)
+            logger.info(f"Filtered out {before_rows - after_rows} summary/total rows from supplier reference file.")
             
             # Store the full reference dataframe for supplier mapping
             self.supplier_reference_df = supplier_df
             
-            # Extract supplier items from the ITEM column (not supplier names)
-            if 'item' in supplier_df.columns:
-                self.supplier_items = supplier_df['item'].dropna().unique().tolist()
-                logger.info(f"Loaded {len(self.supplier_items)} reference items for matching")
-            else:
-                # Try to find item column with different names
-                item_cols = [col for col in supplier_df.columns if 'item' in col.lower() or 'product' in col.lower()]
-                if item_cols:
-                    self.supplier_items = supplier_df[item_cols[0]].dropna().unique().tolist()
-                    logger.info(f"Loaded {len(self.supplier_items)} reference items from column: {item_cols[0]}")
-                else:
-                    logger.warning("No item column found in supplier reference file")
-                    self.supplier_items = []
-                    
+            # Extract supplier items from the item column
+            self.supplier_items = supplier_df[item_col].dropna().unique().tolist()
+            self.supplier_item_col = item_col
+            self.supplier_supplier_col = 'supplier'
+            logger.info(f"Loaded {len(self.supplier_items)} reference items for matching from column: {item_col}")
         except Exception as e:
             logger.error(f"Error loading supplier reference: {str(e)}")
             self.supplier_items = []
@@ -407,50 +416,50 @@ class BBBNormalizer:
         item_str = str(item).strip()
         
         # Exact match first (case insensitive)
-        if item_str.lower() in [x.lower() for x in self.supplier_items]:
-            # Find the exact match and return the corresponding supplier name
-            for idx, supplier_item in enumerate(self.supplier_items):
-                if supplier_item.lower() == item_str.lower():
-                    # Get the supplier name from the reference dataframe
-                    supplier_name = self.supplier_reference_df.iloc[idx]['supplier']
+        for idx, supplier_item in enumerate(self.supplier_items):
+            if supplier_item and supplier_item.lower() == item_str.lower():
+                supplier_row = self.supplier_reference_df[self.supplier_reference_df[self.supplier_item_col] == supplier_item]
+                if not supplier_row.empty:
+                    supplier_name = supplier_row.iloc[0][self.supplier_supplier_col]
                     return supplier_name, 1.0, "Exact match"
         
         # Partial match (check if item contains supplier item or vice versa)
-        for idx, supplier_item in enumerate(self.supplier_items):
-            if (item_str.lower() in supplier_item.lower() or 
-                supplier_item.lower() in item_str.lower()):
-                supplier_name = self.supplier_reference_df.iloc[idx]['supplier']
-                return supplier_name, 0.95, "Partial match"
+        for supplier_item in self.supplier_items:
+            if supplier_item and (item_str.lower() in supplier_item.lower() or supplier_item.lower() in item_str.lower()):
+                supplier_row = self.supplier_reference_df[self.supplier_reference_df[self.supplier_item_col] == supplier_item]
+                if not supplier_row.empty:
+                    supplier_name = supplier_row.iloc[0][self.supplier_supplier_col]
+                    return supplier_name, 0.95, "Partial match"
         
         # Fuzzy matching with lower thresholds
-        best_match_idx = None
+        best_match = None
         best_score = 0
-        
-        for idx, supplier_item in enumerate(self.supplier_items):
-            # Use multiple fuzzy matching algorithms
+        for supplier_item in self.supplier_items:
+            if not supplier_item:
+                continue
             ratio_score = fuzz.ratio(item_str.lower(), supplier_item.lower())
             partial_score = fuzz.partial_ratio(item_str.lower(), supplier_item.lower())
             token_sort_score = fuzz.token_sort_ratio(item_str.lower(), supplier_item.lower())
-            
-            # Take the best score from all algorithms
             score = max(ratio_score, partial_score, token_sort_score)
-            
             if score > best_score:
                 best_score = score
-                best_match_idx = idx
-        
-        # Lower confidence thresholds for better matching
-        if best_score >= 80:
-            supplier_name = self.supplier_reference_df.iloc[best_match_idx]['supplier']
-            return supplier_name, best_score / 100, "High confidence"
-        elif best_score >= 60:
-            supplier_name = self.supplier_reference_df.iloc[best_match_idx]['supplier']
-            return supplier_name, best_score / 100, "Medium confidence"
-        elif best_score >= 40:
-            supplier_name = self.supplier_reference_df.iloc[best_match_idx]['supplier']
-            return supplier_name, best_score / 100, "Low confidence"
-        else:
-            return "UNMATCHED", best_score / 100, "No confident match"
+                best_match = supplier_item
+        if best_match and best_score >= 80:
+            supplier_row = self.supplier_reference_df[self.supplier_reference_df[self.supplier_item_col] == best_match]
+            if not supplier_row.empty:
+                supplier_name = supplier_row.iloc[0][self.supplier_supplier_col]
+                return supplier_name, best_score / 100, "High confidence"
+        elif best_match and best_score >= 60:
+            supplier_row = self.supplier_reference_df[self.supplier_reference_df[self.supplier_item_col] == best_match]
+            if not supplier_row.empty:
+                supplier_name = supplier_row.iloc[0][self.supplier_supplier_col]
+                return supplier_name, best_score / 100, "Medium confidence"
+        elif best_match and best_score >= 40:
+            supplier_row = self.supplier_reference_df[self.supplier_reference_df[self.supplier_item_col] == best_match]
+            if not supplier_row.empty:
+                supplier_name = supplier_row.iloc[0][self.supplier_supplier_col]
+                return supplier_name, best_score / 100, "Low confidence"
+        return "UNMATCHED", best_score / 100, "No confident match"
     
     def process_input_file(self, input_file: str) -> pd.DataFrame:
         """
