@@ -44,6 +44,21 @@ app.add_middleware(
 # Create necessary directories
 os.makedirs("files", exist_ok=True)
 
+def clean_for_json(obj):
+    """Clean object to ensure JSON safety by handling NaN and inf values"""
+    if isinstance(obj, dict):
+        return {k: clean_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_for_json(v) for v in obj]
+    elif pd.isna(obj):
+        return None
+    elif isinstance(obj, (int, float)):
+        if pd.isna(obj) or pd.isinf(obj):
+            return 0.0
+        return obj
+    else:
+        return obj
+
 @app.get("/")
 async def root():
     """Root endpoint for basic API health check."""
@@ -109,10 +124,13 @@ async def analyze_file(bev_file: UploadFile = File(...)):
         
         logger.info(f"BBB file processed successfully: {result['filename']}")
         
+        # Clean the result to ensure JSON safety
+        cleaned_result = clean_for_json(result)
+        
         return {
             "success": True,
-            "filename": result["filename"],
-            "summary": result["summary"]
+            "filename": cleaned_result["filename"],
+            "summary": cleaned_result["summary"]
         }
         
     except Exception as e:
@@ -167,10 +185,13 @@ async def process_bbb_file(bev_file: UploadFile = File(...)):
         
         logger.info(f"BBB file processed successfully: {result['filename']}")
         
+        # Clean the result to ensure JSON safety
+        cleaned_result = clean_for_json(result)
+        
         return {
             "success": True,
-            "filename": result["filename"],
-            "summary": result["summary"]
+            "filename": cleaned_result["filename"],
+            "summary": cleaned_result["summary"]
         }
         
     except Exception as e:

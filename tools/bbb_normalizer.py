@@ -784,13 +784,16 @@ class BBBNormalizer:
             if os.path.exists(temp_input_path):
                 os.remove(temp_input_path)
             
-            # Create summary
+            # Create summary with NaN handling
+            total_cases_sum = purchase_log['Total Cases'].sum()
+            avg_cases = purchase_log['Total Cases'].mean()
+            
             summary = {
                 'total_rows': int(len(purchase_log)),
                 'unique_suppliers': int(purchase_log['Supplier'].nunique()),
                 'unique_items': int(purchase_log['ITEM      '].nunique()),
-                'total_cases': float(purchase_log['Total Cases'].sum()),
-                'avg_cases_per_item': float(purchase_log['Total Cases'].mean() or 0)
+                'total_cases': float(total_cases_sum) if pd.notna(total_cases_sum) else 0.0,
+                'avg_cases_per_item': float(avg_cases) if pd.notna(avg_cases) else 0.0
             }
             
             logger.info(f"BBB normalization complete. Output saved to: {filename}")
