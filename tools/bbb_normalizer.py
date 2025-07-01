@@ -349,6 +349,53 @@ class BBBNormalizer:
         
         return df
     
+    def _combine_multiple_sheets(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
+        """
+        Combine multiple sheets from Excel file into a single dataframe
+        Handles different column names across sheets (Spirit, Wine, Beer, etc.)
+        """
+        combined_dfs = []
+        
+        # Define which sheets to process and their item column mappings
+        sheet_configs = {
+            'Spirits': 'Spirit',
+            'Wine': 'Wine', 
+            'Package Beer': 'Beer',
+            'Draft Beer': 'Beer',
+            'Bar Supplies': 'Item',
+            'Non-Alcoholic': 'Item'
+        }
+        
+        for sheet_name in excel_file.sheet_names:
+            if sheet_name in sheet_configs:
+                try:
+                    logger.info(f"Processing sheet: {sheet_name}")
+                    sheet_df = pd.read_excel(excel_file, sheet_name)
+                    
+                    if len(sheet_df) > 0:
+                        # Map the item column to standard 'item' name
+                        item_col = sheet_configs[sheet_name]
+                        if item_col in sheet_df.columns:
+                            sheet_df['item'] = sheet_df[item_col]
+                            logger.info(f"Added {len(sheet_df)} rows from {sheet_name} sheet")
+                            combined_dfs.append(sheet_df)
+                        else:
+                            logger.warning(f"Item column '{item_col}' not found in {sheet_name} sheet")
+                    else:
+                        logger.warning(f"Sheet {sheet_name} is empty")
+                        
+                except Exception as e:
+                    logger.warning(f"Error processing sheet {sheet_name}: {e}")
+        
+        if combined_dfs:
+            # Combine all dataframes
+            combined_df = pd.concat(combined_dfs, ignore_index=True)
+            logger.info(f"Combined {len(combined_df)} total rows from {len(combined_dfs)} sheets")
+            return combined_df
+        else:
+            logger.warning("No valid sheets found, using first sheet")
+            return pd.read_excel(excel_file, excel_file.sheet_names[0])
+    
     def match_supplier_with_confidence(self, item: str) -> Tuple[str, float, str]:
         """
         Match item to supplier using fuzzy matching
@@ -428,7 +475,17 @@ class BBBNormalizer:
                             # Last resort: try with engine='python'
                             df = pd.read_csv(input_file, engine='python', on_bad_lines='skip')
             else:
-                df = read_excel_file(input_file)
+                # Handle multi-sheet Excel files
+                try:
+                    excel_file = pd.ExcelFile(input_file)
+                    if len(excel_file.sheet_names) > 1:
+                        logger.info(f"Detected multi-sheet Excel file with {len(excel_file.sheet_names)} sheets: {excel_file.sheet_names}")
+                        df = self._combine_multiple_sheets(excel_file)
+                    else:
+                        df = read_excel_file(input_file)
+                except Exception as e:
+                    logger.warning(f"Multi-sheet detection failed: {e}, trying single sheet")
+                    df = read_excel_file(input_file)
             
             logger.info(f"Loaded input file with {len(df)} rows and columns: {list(df.columns)}")
             
