@@ -93,6 +93,38 @@ async def analyze_file(bev_file: UploadFile = File(...)):
         logger.error(f"Error processing file: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/process_bbb_file")
+async def process_bbb_file(bev_file: UploadFile = File(...)):
+    """
+    Process BBB files - alias for /analyze endpoint for frontend compatibility.
+    
+    Accepts one file:
+    - bev_file: 60 Bev CSV or XLSX
+    
+    Uses the master supplier list from test_files/60_Vines_Item_Supplier_List_Master.xlsx for supplier mapping.
+    Returns JSON response with filename.
+    """
+    try:
+        logger.info(f"Processing BBB file: {bev_file.filename}")
+        
+        # Read the uploaded file
+        file_content = await bev_file.read()
+        
+        # Process the file using BBB normalizer
+        result = normalize_bbb(file_content)
+        
+        logger.info(f"BBB file processed successfully: {result['filename']}")
+        
+        return {
+            "success": True,
+            "filename": result["filename"],
+            "summary": result["summary"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing file: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/analyze-nectar")
 async def analyze_nectar(
     byzzer_report: UploadFile = File(..., description="Nielsen/Byzzer report (Excel)"),
