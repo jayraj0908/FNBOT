@@ -13,6 +13,7 @@ import uvicorn
 from io import BytesIO
 import traceback
 import pandas as pd
+import numpy as np
 
 # Add the current directory to Python path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -53,7 +54,7 @@ def clean_for_json(obj):
     elif pd.isna(obj):
         return None
     elif isinstance(obj, (int, float)):
-        if pd.isna(obj) or pd.isinf(obj):
+        if pd.isna(obj) or np.isinf(obj):
             return 0.0
         return obj
     else:
