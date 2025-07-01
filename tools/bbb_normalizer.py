@@ -241,6 +241,11 @@ class BBBNormalizer:
                     df[col] = ''
                 logger.info(f"Added default column: {col}")
         
+        # Special logic: If 'total' column exists and 'quantity' does not, use it as 'quantity'
+        if 'total' in df.columns and 'quantity' not in df.columns:
+            df['quantity'] = df['total']
+            logger.info("Mapped column: total -> quantity (special logic for Moxies/Second Rodeo style files)")
+        
         logger.info(f"Final columns: {list(df.columns)}")
         return df
     
