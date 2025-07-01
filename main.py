@@ -17,7 +17,7 @@ import pandas as pd
 # Add the current directory to Python path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from tools.bbb_normalizer import normalize_bbb
+from tools.bbb_normalizer import BBBNormalizer
 from utils.file_utils import generate_output_filename
 from tools.nectar_dashboard import normalize_nectar
 from utils import file_cache
@@ -78,8 +78,10 @@ async def analyze_file(bev_file: UploadFile = File(...)):
         # Read the uploaded file
         file_content = await bev_file.read()
         
-        # Process the file using BBB normalizer
-        result = normalize_bbb(file_content)
+        # Process the file using BBB normalizer with master supplier list
+        supplier_reference_file = os.path.join("test_files", "60_Vines_Item_Supplier_List_Master.xlsx")
+        bbb_normalizer = BBBNormalizer(supplier_reference_file)
+        result = bbb_normalizer.normalize(file_content)
         
         logger.info(f"BBB file processed successfully: {result['filename']}")
         
@@ -110,8 +112,10 @@ async def process_bbb_file(bev_file: UploadFile = File(...)):
         # Read the uploaded file
         file_content = await bev_file.read()
         
-        # Process the file using BBB normalizer
-        result = normalize_bbb(file_content)
+        # Process the file using BBB normalizer with master supplier list
+        supplier_reference_file = os.path.join("test_files", "60_Vines_Item_Supplier_List_Master.xlsx")
+        bbb_normalizer = BBBNormalizer(supplier_reference_file)
+        result = bbb_normalizer.normalize(file_content)
         
         logger.info(f"BBB file processed successfully: {result['filename']}")
         
