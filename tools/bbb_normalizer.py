@@ -565,6 +565,15 @@ class BBBNormalizer:
             logger.info(f"[DEBUG] Columns after fallback: {list(df.columns)}")
             logger.info(f"[DEBUG] Sample values after fallback: {df.head(3).to_dict('records')}")
 
+            # FINAL direct mapping: if 'total' exists and is numeric, and QUANTITY/Total Cases are all NaN, fill them from 'total'
+            if 'total' in df.columns and pd.api.types.is_numeric_dtype(df['total']):
+                if df['quantity'].isna().all():
+                    df['quantity'] = df['total']
+                    logger.info('[FINAL] Directly filled quantity from total column')
+                if df['Total Cases'].isna().all():
+                    df['Total Cases'] = df['total']
+                    logger.info('[FINAL] Directly filled Total Cases from total column')
+
             return df
             
         except Exception as e:
