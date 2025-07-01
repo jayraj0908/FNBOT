@@ -938,7 +938,7 @@ def normalize_bbb(bev_bytes, references=None):
         logger.info("Starting supplier matching...")
         
         # Load master supplier list
-        master_supplier_path = os.path.join(os.path.dirname(__file__), "..", "..", "test_files", "60_Vines_Item_Supplier_List_Master.xlsx")
+        master_supplier_path = "60_Vines_Item_Supplier_List_Master.xlsx"
         if os.path.exists(master_supplier_path):
             master_df = pd.read_excel(master_supplier_path)
             master_suppliers = master_df['Supplier'].astype(str).str.lower().unique()

@@ -338,7 +338,7 @@ def normalize_nectar(byzzer_bytes, vip_bytes, references=None):
             else:
                 units_sold_col = fulfillment_df['units_sold']
             fulfillment_df['delivered'] = pd.to_numeric(units_sold_col, errors='coerce').fillna(0)
-        else:
+    else:
             fulfillment_df['delivered'] = 0
             logger.warning("units_sold column not found, setting delivered to 0")
         
@@ -397,7 +397,7 @@ def normalize_nectar(byzzer_bytes, vip_bytes, references=None):
                 store = str(store)
             if isinstance(sku, (np.ndarray, pd.Series, list)):
                 sku = str(sku[0]) if len(sku) > 0 else ''
-            else:
+    else:
                 sku = str(sku)
             sku_norm = normalize_sku_name(sku)
             
@@ -533,7 +533,7 @@ def normalize_nectar(byzzer_bytes, vip_bytes, references=None):
         logger.info(f"About to save Excel output to: {output_path}")
         logger.info(f"Final dashboard shape: {dashboard_output.shape}")
 
-        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
             dashboard_output.to_excel(writer, sheet_name='Nectar Dashboard', index=False)
 
         # Create summary for frontend
