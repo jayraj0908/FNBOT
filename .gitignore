@@ -5,3 +5,4 @@ test_files/
 *.csv
 *.lottie
 
+!60_Vines_Item_Supplier_List_Master.xlsx

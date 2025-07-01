@@ -81,9 +81,12 @@ async def analyze_file(bev_file: UploadFile = File(...)):
         # Process the file using BBB normalizer with master supplier list
         # Try multiple possible paths for the supplier reference file
         possible_paths = [
+            "60_Vines_Item_Supplier_List_Master.xlsx",  # Root directory
             os.path.join("test_files", "60_Vines_Item_Supplier_List_Master.xlsx"),
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_files", "60_Vines_Item_Supplier_List_Master.xlsx"),
-            "60_Vines_Item_Supplier_List_Master.xlsx"
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "60_Vines_Item_Supplier_List_Master.xlsx"),
+            "/app/60_Vines_Item_Supplier_List_Master.xlsx",  # Railway container path
+            "/app/test_files/60_Vines_Item_Supplier_List_Master.xlsx"  # Railway container path
         ]
         
         supplier_reference_file = None
@@ -95,6 +98,10 @@ async def analyze_file(bev_file: UploadFile = File(...)):
         
         if not supplier_reference_file:
             logger.error("Supplier reference file not found in any expected location")
+            logger.error(f"Current working directory: {os.getcwd()}")
+            logger.error(f"Available files: {os.listdir('.')}")
+            if os.path.exists('test_files'):
+                logger.error(f"test_files contents: {os.listdir('test_files')}")
             raise HTTPException(status_code=500, detail="Supplier reference file not found")
         
         bbb_normalizer = BBBNormalizer(supplier_reference_file)
@@ -132,9 +139,12 @@ async def process_bbb_file(bev_file: UploadFile = File(...)):
         # Process the file using BBB normalizer with master supplier list
         # Try multiple possible paths for the supplier reference file
         possible_paths = [
+            "60_Vines_Item_Supplier_List_Master.xlsx",  # Root directory
             os.path.join("test_files", "60_Vines_Item_Supplier_List_Master.xlsx"),
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_files", "60_Vines_Item_Supplier_List_Master.xlsx"),
-            "60_Vines_Item_Supplier_List_Master.xlsx"
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "60_Vines_Item_Supplier_List_Master.xlsx"),
+            "/app/60_Vines_Item_Supplier_List_Master.xlsx",  # Railway container path
+            "/app/test_files/60_Vines_Item_Supplier_List_Master.xlsx"  # Railway container path
         ]
         
         supplier_reference_file = None
@@ -146,6 +156,10 @@ async def process_bbb_file(bev_file: UploadFile = File(...)):
         
         if not supplier_reference_file:
             logger.error("Supplier reference file not found in any expected location")
+            logger.error(f"Current working directory: {os.getcwd()}")
+            logger.error(f"Available files: {os.listdir('.')}")
+            if os.path.exists('test_files'):
+                logger.error(f"test_files contents: {os.listdir('test_files')}")
             raise HTTPException(status_code=500, detail="Supplier reference file not found")
         
         bbb_normalizer = BBBNormalizer(supplier_reference_file)
